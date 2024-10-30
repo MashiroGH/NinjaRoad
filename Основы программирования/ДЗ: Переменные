@@ -1,0 +1,35 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.RegularExpressions;
+
+namespace HelloWorld
+{
+	public class Program
+	{
+		public static void Main(string[] args)
+		{
+			int kilometers = 10000;
+			bool isTrue = false;
+			float money = 10.65f;
+			string pathToFile = "/usr/share/somefiles/";
+			char letter = 'a';
+			byte age = 50;
+			bool isFalse = true;
+			string name = "Grisha";
+			double sum = 0;
+			int max = 1;
+			
+			Console.WriteLine(kilometers);
+			Console.WriteLine(isTrue);
+			Console.WriteLine(money);
+			Console.WriteLine(pathToFile);
+			Console.WriteLine(letter);
+			Console.WriteLine(age);
+			Console.WriteLine(isFalse);
+			Console.WriteLine(name);
+			Console.WriteLine(sum);
+			Console.WriteLine(max);
+		}
+	}
+}
