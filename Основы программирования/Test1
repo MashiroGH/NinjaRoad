@@ -5,16 +5,6 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 NC='\033[0m'
 
-# LINUH логотип
-echo ""
-echo -e "${RED} _       _    _   _   _    _   _   _ ${NC}"
-echo -e "${RED}| |     | |  | \ | | | |  | | | | | |${NC}"
-echo -e "${RED}| |     | |  |  \| | | |  | | | |_| |${NC}"
-echo -e "${RED}| |     | |  |     | | |  | | |  _  |${NC}"
-echo -e "${RED}| |___  | |  | |\  | | |__| | | | | |${NC}" 
-echo -e "${RED}|_____| |_|  |_| \_|  \____/  |_| |_|${NC}"
-echo ""
-
 # Проверка chronyc sources
 echo ""
 sources_output=$(chronyc sources)
@@ -63,11 +53,7 @@ while true; do
         # Остановка службы Salt Minion
         systemctl stop salt-minion
         sed -i "s/^id:.*/id: $upperCase/" /etc/salt/minion
-        rm -rf /var/cache/salt/minion
-
-        # Удаление старого ключа на Salt Master
-        echo -e "${RED}Удаляю старый ключ на Salt Master...${NC}"
-        sudo salt-key -d "$(hostname)" -y
+        rm -rf /var/cache/salt/minion  # Удаление кэша minion
 
         # Переименование системы
         hostnamectl set-hostname "$upperCase"
@@ -79,14 +65,7 @@ while true; do
 
         # Перезапуск Salt Minion
         systemctl start salt-minion
-        sleep 5  # Ожидание появления нового ключа
-
-        # Принятие нового ключа на Salt Master
-        echo -e "${GREEN}Принимаю новый ключ на Salt Master...${NC}"
-        sudo salt-key -a "$upperCase" -y
-
-        # Проверка связи с новым minion
-        sudo salt "$upperCase" test.ping
+        echo -e "${GREEN}Переименование завершено. Salt Minion будет активен с новым именем после перезагрузки.${NC}"
         break
     else
         echo -e "${RED}Вы ввели неправильное имя, оно должно содержать максимум 15 символов.${NC}"
@@ -94,36 +73,7 @@ while true; do
     fi
 done
 
-# Ввод в домен
-while true; do
-    echo ""
-    net_ads_join_output=$(echo "$pass" | net ads join -U $UZ_adm --force 2> /tmp/net_ads_join_error.log)
-    sleep 3
-    if echo "$net_ads_join_output" | grep -q "Using short domain name"; then
-        systemctl restart winbind
-        break
-    else
-        echo -ne "\r${RED}[!!!!!!!!!!!!!!!!]${NC} Ошибка присоединения к домену: \n$net_ads_join_output\n"
-        echo -e "${RED}Повторите попытку.${NC}"
-        cat /tmp/net_ads_join_error.log
-        read -p "Пробуем еще раз ввести свою УЗ_сайт_админа или УЗ_админа: " UZ_adm
-        echo ""
-        echo "Пробуем еще раз ввести пароль от своей УЗ_сайт_админа или УЗ_админа: "
-        read -s pass
-    fi
-done
-
-systemctl restart winbind.service
-systemctl restart smb.service
-
-# LINUH завершение
-echo -e "${GREEN} _       _    _   _   _    _   _   _ ${NC}"
-echo -e "${GREEN}| |     | |  | \ | | | |  | | | | | |${NC}"
-echo -e "${GREEN}| |     | |  |  \| | | |  | | | |_| |${NC}"
-echo -e "${GREEN}| |     | |  |     | | |  | | |  _  |${NC}"
-echo -e "${GREEN}| |___  | |  | |\  | | |__| | | | | |${NC}" 
-echo -e "${GREEN}|_____| |_|  |_| \_|  \____/  |_| |_|${NC}"
-
+# Перезагрузка
 echo -e "${GREEN}-Перезагрузка будет через 5 сек${NC}"
 sleep 5
 reboot
