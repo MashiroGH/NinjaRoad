@@ -44,23 +44,31 @@ done
 # Переименование Salt Minion
 while true; do
     read -p "Введите новое имя хоста: " newHostName
-    upperCase=$(echo $newHostName | tr '[:lower:]' '[:upper:]')
+    upperCase=$(echo "$newHostName" | tr '[:lower:]' '[:upper:]')
     length=${#upperCase}
 
     if (( length > 0 && length <= 15 )); then
-        echo -e "Введено имя: ${GREEN}$upperCase${NC}"
+        # Добавляем суффикс к имени хоста
+        finalHostName="${upperCase}.UHT.TN.CORP"
+        echo -e "Введено имя: ${GREEN}$finalHostName${NC}"
 
         # Остановка службы Salt Minion
         systemctl stop salt-minion
-        sed -i "s/^id:.*/id: $upperCase/" /etc/salt/minion
-        rm -rf /var/cache/salt/minion  # Удаление кэша minion
+
+        # Обновление minion_id с новым именем
+        echo "$finalHostName" > /etc/salt/minion_id
+
+        # Очистка кэша и удаление временных данных Salt Minion
+        rm -rf /var/cache/salt/minion
 
         # Переименование системы
-        hostnamectl set-hostname "$upperCase"
+        hostnamectl set-hostname "$finalHostName"
         systemctl restart systemd-hostnamed
-        sed -i '9s/.*/HOSTNAME="$upperCase"/' /etc/sysconfig/network
-        echo "$upperCase" > /etc/hostname
-        echo -e "Мы поменяли имя хоста на: ${GREEN}$upperCase${NC}"
+
+        # Обновляем файл /etc/sysconfig/network с новым именем
+        sed -i 's/^HOSTNAME=.*/HOSTNAME="'"$finalHostName"'"/' /etc/sysconfig/network
+        echo "$finalHostName" > /etc/hostname
+        echo -e "Мы поменяли имя хоста на: ${GREEN}$finalHostName${NC}"
         systemctl restart network.service
 
         # Перезапуск Salt Minion
