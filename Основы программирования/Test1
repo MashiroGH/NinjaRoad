@@ -48,27 +48,25 @@ while true; do
     length=${#upperCase}
 
     if (( length > 0 && length <= 15 )); then
-        # Добавляем суффикс к имени хоста
-        finalHostName="${upperCase}.UHT.TN.CORP"
-        echo -e "Введено имя: ${GREEN}$finalHostName${NC}"
+        echo -e "Введено имя: ${GREEN}$upperCase${NC}"
 
         # Остановка службы Salt Minion
         systemctl stop salt-minion
 
-        # Обновление minion_id с новым именем
-        echo "$finalHostName" > /etc/salt/minion_id
+        # Обновление minion_id с новым именем и добавлением суффикса
+        echo "${upperCase}.UHT.TN.CORP" > /etc/salt/minion_id
 
         # Очистка кэша и удаление временных данных Salt Minion
         rm -rf /var/cache/salt/minion
 
         # Переименование системы
-        hostnamectl set-hostname "$finalHostName"
+        hostnamectl set-hostname "$upperCase"
         systemctl restart systemd-hostnamed
 
         # Обновляем файл /etc/sysconfig/network с новым именем
-        sed -i 's/^HOSTNAME=.*/HOSTNAME="'"$finalHostName"'"/' /etc/sysconfig/network
-        echo "$finalHostName" > /etc/hostname
-        echo -e "Мы поменяли имя хоста на: ${GREEN}$finalHostName${NC}"
+        sed -i 's/^HOSTNAME=.*/HOSTNAME="'"$upperCase"'"/' /etc/sysconfig/network
+        echo "$upperCase" > /etc/hostname
+        echo -e "Мы поменяли имя хоста на: ${GREEN}$upperCase${NC}"
         systemctl restart network.service
 
         # Перезапуск Salt Minion
