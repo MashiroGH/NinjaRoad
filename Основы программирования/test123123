@@ -1,1 +1,123 @@
 
+#!/bin/bash
+
+#Переменные с цветами
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+NC='\033[0m'
+#Переменные с цветами
+
+#LINUH------------------------------------------------------
+echo ""
+echo -e "${RED} _       _    _   _   _    _   _   _ ${NC}" 
+echo -e "${RED}| |     | |  | \ | | | |  | | | | | |${NC}"
+echo -e "${RED}| |     | |  |  \| | | |  | | | |_| |${NC}"
+echo -e "${RED}| |     | |  |     | | |  | | |  _  |${NC}"
+echo -e "${RED}| |___  | |  | |\  | | |__| | | | | |${NC}"  
+echo -e "${RED}|_____| |_|  |_| \_|  \____/  |_| |_|${NC}"
+echo ""
+#LINUH------------------------------------------------------
+
+# Проверка chronyc sources
+echo ""
+sources_output=$(chronyc sources)
+while IFS= read -r line; do
+    if [[ $line == *'^*'* ]]; then
+        echo -e "${GREEN} $sources_output ${NC}"
+    elif [[ $line == *'?*'* ]]; then
+        echo -e "${RED}$sources_output${NC}"
+    fi
+done <<< "$sources_output"
+
+echo ""
+read -p "Введите УЗ_сайт_админа или УЗ_админа: " UZ_adm
+echo ""
+echo "Введите пароль от своей УЗ_сайт_админа или УЗ_админа: "
+read -s pass
+echo ""
+
+# Удаление из домена
+while true; do
+    echo ""
+    net_ads_leave_output=$(echo "$pass" | net ads leave -U $UZ_adm)
+    sleep 3
+    if echo "$net_ads_leave_output"; then
+        systemctl restart winbind
+        break
+    else
+        echo -ne "\r${RED}[!!!!!!!!!!!!!!!!]${NC} Ошибка удаления из домена"
+        echo -e "${RED}Повторите попытку.${NC}"
+        read -p "Пробуем еще раз ввести свою УЗ_сайт_админа или УЗ_админа: " UZ_adm
+        echo ""
+        echo "Пробуем еще раз ввести пароль от своей УЗ_сайт_админа или УЗ_админа: "
+        read -s pass
+    fi
+done
+
+# Переименование Salt Minion
+while true; do
+    read -p "Введите новое имя хоста: " newHostName
+    upperCase=$(echo "$newHostName" | tr '[:lower:]' '[:upper:]')
+    length=${#upperCase}
+
+    if (( length > 0 && length <= 15 )); then
+        echo -e "Введено имя: ${GREEN}$upperCase${NC}"
+
+        # Остановка службы Salt Minion
+        systemctl stop salt-minion.service 
+
+        # Обновление minion_id с новым именем и добавлением суффикса
+        echo "${upperCase}.UHT.TN.CORP" > /etc/salt/minion_id
+
+        # Очистка кэша и удаление временных данных Salt Minion
+        rm -rf /var/cache/salt/minion
+
+        # Переименование системы
+        hostnamectl set-hostname "$upperCase"
+        systemctl restart systemd-hostnamed
+
+        # Обновляем файл /etc/sysconfig/network с новым именем
+        sed -i '9s/.*/'HOSTNAME="$upperCase"'/' /etc/sysconfig/network
+        echo "$upperCase" > /etc/hostname
+        echo -e "Мы поменяли имя хоста на: ${GREEN}$upperCase${NC}"
+        systemctl restart network.service
+
+        # Перезапуск Salt Minion
+        systemctl start salt-minion.service 
+        echo -e "${GREEN}Переименование завершено. Salt Minion будет активен с новым именем после перезагрузки.${NC}"
+        break
+    else
+        echo -e "${RED}Вы ввели неправильное имя, оно должно содержать максимум 15 символов.${NC}"
+        echo ""
+    fi
+done
+
+#Ввод в домен-----------------------------------------------
+while true; do
+echo ""
+net_ads_join_output=$(echo "$pass" | net ads join -U $UZ_adm --force 2> /tmp/net_ads_join_error.log)
+sleep 3
+if echo "$net_ads_join_output" | grep -q "Using short domain name -- UHT-TN"; then
+	systemctl restart winbind 
+	break
+else 
+	echo -ne "\r${RED}[!!!!!!!!!!!!!!!!]${NC} Ошибка присоединения к домену: \n$net_ads_join_output\n"
+	echo -e "${RED}Повторите попытку.${NC}"
+	cat /tmp/net_ads_join_error.log
+	read -p "Пробуем еще раз ввести свою УЗ_сайт_админа или УЗ_админа: " UZ_adm
+	echo ""
+	echo "Пробуем еще раз ввести пароль от своей УЗ_сайт_админа или УЗ_админа: " 
+	read -s pass
+fi
+done
+
+echo "" 
+systemctl restart winbind.service
+systemctl restart smb.service
+echo ""
+#Ввод в домен-----------------------------------------------
+
+# Перезагрузка
+echo -e "${GREEN}-Перезагрузка будет через 5 сек${NC}"
+sleep 5
+reboot
