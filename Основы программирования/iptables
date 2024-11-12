@@ -1,1 +1,115 @@
 
+#!/bin/bash
+
+# Переменные
+LOG_DIR="/usr/log/firewall"
+LOG_FILE="$LOG_DIR/iptables_log_$(date +'%Y-%m-%d_%H-%M-%S').txt"
+IPTABLES_RULES="/etc/iptables/rules.v4"
+RESTORE_SCRIPT="/etc/iptables/restore-rules.sh"
+SERVICE_FILE="/etc/systemd/system/iptables-restore.service"
+
+# Создаем путь для логов
+mkdir -p ${LOG_DIR}
+mkdir -p /etc/iptables/
+
+# Функция для логирования и выполнения команд
+log_and_execute() {
+    echo "Executing: $1" | tee -a ${LOG_FILE}
+    eval $1 2>&1 | tee -a ${LOG_FILE}
+    if [ $? -eq 0 ]; then
+        echo "Success: $1" | tee -a ${LOG_FILE}
+    else
+        echo "Error: $1" | tee -a ${LOG_FILE}
+    fi
+    echo "--------------------------------------------" | tee -a ${LOG_FILE}
+}
+
+echo "Starting iptables configuration..." | tee -a ${LOG_FILE}
+
+# Включение базовых правил iptables
+log_and_execute "iptables -P INPUT DROP"
+log_and_execute "iptables -P OUTPUT ACCEPT"
+
+# Разрешаем уже установленные и свзанные соединения
+log_and_execute "iptables -A INPUT -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT"
+
+# Отклоняем некорректные пакеты
+log_and_execute "iptables -A INPUT -m conntrack --ctstate INVALID -j DROP"
+
+# Разрешаем ICMP (ping)
+log_and_execute "iptables -A INPUT -p icmp -j ACCEPT"
+
+# Разрешаем доступ к VSM01-PITSADM01
+log_and_execute "iptables -A INPUT -s 10.162.10.147/32 -j ACCEPT"
+
+# Разрешаем доступ к VSM01-PIAV---02(Касп)
+log_and_execute "iptables -A INPUT -s 10.162.10.198/32 -j ACCEPT"
+
+# Разрешаем доступ на VSM01-PIRDSH-06
+log_and_execute "iptables -A INPUT -s 10.162.10.167/32 -j ACCEPT"
+# Разрешаем доступ на выделенную подсеть .15.0/27
+log_and_execute "iptables -A INPUT -s 10.162.15.0/27 -j ACCEPT"
+
+# Разрешаем доступ на localhost
+log_and_execute "iptables -A INPUT -s 127.0.0.1/32 -j ACCEPT"
+
+# Резрешаем доступ для SSM01-PISB---02
+log_and_execute "iptables -A INPUT -s 10.162.1.169/32 -p tcp -m multiport --dports 22,80,135,137:139,443,445,3389,5985:5986,13288:13292,27594 -j ACCEPT"
+
+# Разрешаем доступ для SSM01-PISB---02
+log_and_execute "iptables -A INPUT -s 10.162.1.169/32 -p udp -m multiport --dports 135,137:139 -j ACCEPT"
+
+# Разрешаем доступ для SSM01-PISB---05
+log_and_execute "iptables -A INPUT -s 10.162.1.22/32 -p tcp -m multiport --dports 22,80,135,137:139,443,445,3389,5985:5986,13288:13292,27594 -j ACCEPT"
+
+# Разрешаем доступ для SSM01-PISB---05
+log_and_execute "iptables -A INPUT -s 10.162.1.22/32 -p udp -m multiport --dports 135,137:139 -j ACCEPT"
+
+
+
+chmod 777 "$LOG_FILE"
+chown user:user "$LOG_FILE"
+chmod 777 /usr/log
+chown user:user /usr/log
+chmod 777 /usr/log/firewall
+chown user:user /usr/log/firewall 
+
+echo "iptables configuration complete." | tee -a ${LOG_FILE}
+
+# Сохранение текущих правил
+echo "Сохраняем текущие правила iptables в ${IPTABLES_RULES}"
+iptables-save > ${IPTABLES_RULES}
+
+# Создание скрипта восстановления правил
+echo "Создаем скрипт восстановления правил: ${RESTORE_SCRIPT}"
+cat <<EOF | tee ${RESTORE_SCRIPT}
+#!/bin/sh
+/sbin/iptables-restore < ${IPTABLES_RULES}
+EOF
+
+# Сделать скрипт исполняемым
+chmod +x ${RESTORE_SCRIPT}
+
+# Создание systemd сервиса
+echo "Создаем systemd сервис для восстановления правил: ${SERVICE_FILE}"
+cat <<EOF | tee ${SERVICE_FILE}
+[Unit]
+Description=Restore iptables rules. PrudnikovAV OIT
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=${RESTORE_SCRIPT}
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Перезагрузка systemd и включение сервиса
+echo "Перезагружаем конфигурацию systemd и включаем сервис"
+systemctl daemon-reload
+systemctl enable iptables-restore
+systemctl start iptables-restore
+
+echo "Настройка завершена."
+
