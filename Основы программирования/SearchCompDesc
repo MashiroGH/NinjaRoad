@@ -48,3 +48,43 @@ foreach ($folder in $folders){
 }
 
 $inactiveComputers | Sort-Object LastLogonTimestamp -Descending | Out-GridView
+
+
+
+
+# Устанавливаем кодировку для вывода
+$OutputEncoding = [System.Text.Encoding]::UTF8
+
+# Укажите слово для поиска в поле Description
+$searchWord = "Вадим"
+
+# OU для поиска компьютеров
+$folders = @(
+    "OU=01-AUP,DC=UHT,DC=TN,DC=CORP",
+    "OU=02-USA,DC=UHT,DC=TN,DC=CORP",
+    "OU=03-UHT,DC=UHT,DC=TN,DC=CORP",
+    "OU=04-VLG,DC=UHT,DC=TN,DC=CORP",
+    "OU=09-PRIV,DC=UHT,DC=TN,DC=CORP"
+)
+
+# Массив для хранения результатов
+$computersWithDescriptionMatch = @()
+
+foreach ($folder in $folders) {
+    # Получаем все компьютеры в каждом OU с полем Description
+    $computersInFolder = Get-ADComputer -Filter * -Properties Description, Name -SearchBase $folder
+
+    foreach ($computer in $computersInFolder) {
+        # Проверяем наличие слова в поле Description
+        if ($computer.Description -and $computer.Description -match $searchWord) {
+            # Если найдено совпадение, добавляем результат в массив
+            $computersWithDescriptionMatch += [PSCustomObject]@{
+                Name        = $computer.Name
+                Description = $computer.Description
+            }
+        }
+    }
+}
+
+# Выводим результаты в Out-GridView
+$computersWithDescriptionMatch | Out-GridView -Title "Компьютеры с '$searchWord' в поле Description"
