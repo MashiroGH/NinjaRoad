@@ -11,3 +11,40 @@ $results = Get-ADComputer -Filter * -Properties Description, Name | Where-Object
 
 # Выводим результаты в Out-GridView
 $results | Out-GridView -Title "Результаты поиска по слову '$searchWord' в поле Description"
+
+
+
+
+
+#Показывает все компы, которые небыли в сети больше $numberOfDays дней.
+
+$OutputEncoding = [System.Text.Encoding]::UTF8
+$numberOfDays = 30
+
+$currentDate = Get-Date
+$inactiveComputers = @()
+$cutOffDate = $currentDate.AddDays(-$numberOfDays)
+$folders = @(
+    "OU=01-AUP,DC=UHT,DC=TN,DC=CORP"
+    "OU=02-USA,DC=UHT,DC=TN,DC=CORP",
+    "OU=03-UHT,DC=UHT,DC=TN,DC=CORP",
+    "OU=04-VLG,DC=UHT,DC=TN,DC=CORP",
+    "OU=09-PRIV,DC=UHT,DC=TN,DC=CORP"
+)
+
+foreach ($folder in $folders){
+    $computersInFolder = Get-ADComputer -Filter * -Properties lastLogon, lastLogonTimestamp -SearchBase $folder
+        foreach ($computer in $computersInFolder){
+            $lastLogonDate = [DateTime]::FromFileTime($computer.lastLogon)
+            $lastLogonTimestampDate = [DateTime]::FromFileTime($computer.lastLogonTimestamp)
+            if ( $lastLogonTimestampDate -lt $cutOffDate){
+                $inactiveComputers += [PSCustomObject]@{
+                    Name = $computer.Name
+                    LastLogonTimestamp = $lastLogonTimestampDate
+                    LastLogon = $lastLogonDate                    
+                }
+            }
+        }
+}
+
+$inactiveComputers | Sort-Object LastLogonTimestamp -Descending | Out-GridView
