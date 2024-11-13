@@ -1,0 +1,13 @@
+# Укажите слово для поиска в поле Description
+$searchWord = "Вадим"
+
+# Импортируем модуль для работы с Active Directory (потребуется RSAT)
+Import-Module ActiveDirectory
+
+# Получаем все компьютеры из AD и отбираем только те, у которых в Description содержится искомое слово
+$results = Get-ADComputer -Filter * -Properties Description, Name | Where-Object {
+    $_.Description -and $_.Description -match $searchWord
+} | Select-Object Name, Description
+
+# Выводим результаты в Out-GridView
+$results | Out-GridView -Title "Результаты поиска по слову '$searchWord' в поле Description"
